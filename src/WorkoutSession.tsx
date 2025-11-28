@@ -23,21 +23,136 @@ type Exercise = {
   sets: number;
   edit?: {
     reason: string;
-    state: "remove" | "none" | "add";
-    nameDiff: boolean;
-    repDiff: "decrease" | "none" | "increase";
-    setDiff: "decrease" | "none" | "increase";
+    state: "remove" | "add" | "none";
+    prev: Omit<Exercise, "edit">;
   };
 };
 
+const PLACEHOLDER_EXERCISE: Exercise = {
+  name: "",
+  reps: 0,
+  sets: 0,
+};
+
+const ORIGINAL: Exercise[] = [
+  { name: "Dips", reps: 10, sets: 4 },
+  { name: "Pullups", reps: 12, sets: 3 },
+  { name: "Rows", reps: 20, sets: 3 },
+  { name: "Squats", reps: 30, sets: 3 },
+];
+
+const REMIXED: Exercise[] = [
+  {
+    name: "Benchpress",
+    reps: 10,
+    sets: 4,
+    edit: {
+      reason:
+        "You have great expertise with this exercise and you are making good progress on it",
+      state: "none",
+      prev: ORIGINAL[0],
+    },
+  },
+  {
+    name: "Lat pulldown",
+    reps: 12,
+    sets: 3,
+    edit: {
+      reason: "You haven't done this exercise in a while",
+      state: "none",
+      prev: ORIGINAL[1],
+    },
+  },
+  { name: "Rows", reps: 20, sets: 3 },
+  { name: "Squats", reps: 30, sets: 3 },
+];
+
+const CHILLED: Exercise[] = [
+  {
+    name: "Pushups",
+    reps: 10,
+    sets: 4,
+    edit: {
+      reason:
+        "Pushup is an easier pushing exercise that you have a lot of experience in",
+      state: "none",
+      prev: ORIGINAL[0],
+    },
+  },
+  {
+    name: "Pullups",
+    reps: 6,
+    sets: 3,
+    edit: {
+      reason:
+        "You tend to lower the reps on this exercise when you are under the weather",
+      state: "none",
+      prev: ORIGINAL[1],
+    },
+  },
+  {
+    name: "Rows",
+    reps: 10,
+    sets: 3,
+    edit: {
+      reason: "You tend to be more fatigue after doing an upper body day",
+      state: "none",
+      prev: ORIGINAL[2],
+    },
+  },
+  {
+    name: "Squats",
+    reps: 30,
+    sets: 3,
+    edit: {
+      reason: "Amount of exercises is higher than the average",
+      state: "remove",
+      prev: PLACEHOLDER_EXERCISE,
+    },
+  },
+];
+
+const CHALLENGES: Exercise[] = [
+  {
+    name: "Pushups",
+    reps: 20,
+    sets: 3,
+    edit: {
+      reason:
+        "You have great expertise in this exercise, which is a great warmup before dips",
+      state: "add",
+      prev: PLACEHOLDER_EXERCISE,
+    },
+  },
+  {
+    name: "Dips",
+    reps: 10,
+    sets: 4,
+  },
+  {
+    name: "Pullups",
+    reps: 12,
+    sets: 3,
+  },
+  {
+    name: "Rows",
+    reps: 20,
+    sets: 3,
+  },
+  {
+    name: "Squats",
+    reps: 50,
+    sets: 3,
+    edit: {
+      reason: "Your progression on squats have been great",
+      state: "none",
+      prev: ORIGINAL[3],
+    },
+  },
+];
+
 function WorkoutSession() {
-  const [exercises, setExercises] = useState<Exercise[]>([
-    { name: "Dips", reps: 10, sets: 4 },
-    { name: "Pullups", reps: 12, sets: 3 },
-    { name: "Rows", reps: 40, sets: 3 },
-    { name: "Squats", reps: 30, sets: 3 },
-  ]);
-  const [oldExercises, setOldExercises] = useState<Exercise[] | null>(null);
+  const [exercises, setExercises] = useState<Exercise[]>(ORIGINAL);
   const [action, setAction] = useState<"remix" | "chill" | "challenge" | null>(
     null,
   );
@@ -53,55 +168,78 @@ function WorkoutSession() {
     setExercises(newExercises);
   };
 
-  const acceptChange = (index: number) => {
+  const handleAccept = (index: number) => {
     return () => {
       const ex = exercises[index];
       var newExercises: Exercise[] = [];
-      if (ex.edit && ex.edit.state === "remove") {
-        // remove the exercise if the removal is accepted
-        newExercises = exercises
-          .slice(0, index)
-          .concat(exercises.slice(index + 1));
-      } else {
+      if (ex.edit === undefined)
+        throw new Error("edit should not be undefined");
+
+      if (ex.edit.state === "add") {
         newExercises = exercises.map((ex, i) => ({
           ...ex,
           edit: i === index ? undefined : ex.edit,
         }));
       }
 
-      console.log("accept exercises", newExercises);
+      // remove the exercise if the removal is accepted
+      if (ex.edit.state === "remove") {
+        newExercises = exercises
+          .slice(0, index)
+          .concat(exercises.slice(index + 1));
+      }
+
+      if (ex.edit.state === "none") {
+        newExercises = exercises.map((ex, i) => ({
+          ...ex,
+          edit: i === index ? undefined : ex.edit,
+        }));
+      }
+
+      // clear the old exercises and reset the action when
+      // every edits are done
       if (newExercises.every((ex) => ex.edit === undefined)) {
-        console.log("accept set action");
-        setOldExercises(null);
         setAction(null);
       }
       setExercises(newExercises);
     };
   };
 
-  const rejectChange = (index: number) => {
+  const handleReject = (index: number) => {
     return () => {
       const ex = exercises[index];
       var newExercises: Exercise[] = [];
-      if (ex.edit && ex.edit.state === "add") {
-        // remove the exercise if rejecting the new addition
+      if (ex.edit === undefined)
+        throw new Error("edit should not be undefined");
+
+      // remove the exercise if rejecting the new addition
+      if (ex.edit.state === "add") {
         newExercises = exercises
           .slice(0, index)
           .concat(exercises.slice(index + 1));
-      } else {
-        const oldExercise = oldExercises![index];
+      }
+
+      // keep the exercise
+      if (ex.edit.state === "remove") {
         newExercises = exercises.map((ex, i) => ({
-          name: i === index ? oldExercise.name : ex.name,
-          reps: i === index ? oldExercise.reps : ex.reps,
-          sets: i === index ? oldExercise.sets : ex.sets,
+          ...ex,
           edit: i === index ? undefined : ex.edit,
         }));
       }
 
-      console.log("reject exercises", newExercises);
+      // revert the changes for diff stats
+      if (ex.edit.state === "none") {
+        newExercises = exercises.map((e, i) => ({
+          name: i === index ? e.edit!.prev.name : e.name,
+          reps: i === index ? e.edit!.prev.reps : e.reps,
+          sets: i === index ? e.edit!.prev.sets : e.sets,
+          edit: i === index ? undefined : e.edit,
+        }));
+      }
+
+      // clear the old exercises and reset the action when
+      // every edits are done
       if (newExercises.every((ex) => ex.edit === undefined)) {
-        console.log("reject set action");
-        setOldExercises(null);
         setAction(null);
       }
       setExercises(newExercises);
@@ -109,84 +247,25 @@ function WorkoutSession() {
   };
 
   const handleRemix = () => {
-    // Shuffle exercises while keeping the same structure
-    const shuffled = [...exercises].sort(() => Math.random() - 0.5);
-    setExercises(shuffled);
+    setExercises(REMIXED);
+    setAction("remix");
   };
 
   const handleChill = () => {
-    const chilled: Exercise[] = [
-      {
-        name: "Pushups",
-        reps: 10,
-        sets: 4,
-        edit: {
-          reason:
-            "Pushup is an easier pushing exercise that you have a lot of experience in",
-          state: "none",
-          nameDiff: true,
-          repDiff: "none",
-          setDiff: "none",
-        },
-      },
-      {
-        name: "Pullups",
-        reps: 6,
-        sets: 3,
-        edit: {
-          reason:
-            "You tend to lower the reps on this exercise when you are under the weather",
-          state: "none",
-          nameDiff: false,
-          repDiff: "decrease",
-          setDiff: "none",
-        },
-      },
-      {
-        name: "Rows",
-        reps: 20,
-        sets: 3,
-        edit: {
-          reason: "You tend to be more fatigue after doing an upper body day",
-          state: "none",
-          nameDiff: false,
-          repDiff: "decrease",
-          setDiff: "none",
-        },
-      },
-      {
-        name: "Squats",
-        reps: 30,
-        sets: 3,
-        edit: {
-          reason: "Amount of exercises is higher than the average",
-          state: "remove",
-          nameDiff: false,
-          repDiff: "none",
-          setDiff: "none",
-        },
-      },
-    ];
-    setOldExercises(exercises);
-    setExercises(chilled);
+    setExercises(CHILLED);
     setAction("chill");
   };
 
   const handleChallenge = () => {
-    // Increase reps and sets by 20%
-    const challenged = exercises.map((ex) => ({
-      ...ex,
-      reps: Math.ceil(ex.reps * 1.2),
-      sets: Math.ceil(ex.sets * 1.2),
-    }));
-    setExercises(challenged);
+    setExercises(CHALLENGES);
+    setAction("challenge");
   };
 
   return (
     <Card className="flex items-center max-w-2xl shadow-lg">
       <CardHeader className="w-full pb-4">
         <CardTitle className="text-2xl font-bold text-center">
-          Upper Body Session
+          Workout Session
         </CardTitle>
       </CardHeader>
 
@@ -196,9 +275,14 @@ function WorkoutSession() {
             <div key={index} className="flex items-center justify-center gap-4">
               <span
                 className={cn("font-medium text-lg w-24", {
-                  "text-yellow-600": exercise.edit && exercise.edit.nameDiff,
+                  "text-yellow-600":
+                    exercise.edit &&
+                    exercise.edit.state === "none" &&
+                    exercise.edit.prev.name !== exercise.name,
                   "text-gray-300":
                     exercise.edit && exercise.edit.state === "remove",
+                  "text-sky-500":
+                    exercise.edit && exercise.edit.state === "add",
                 })}
               >
                 {exercise.name}
@@ -209,6 +293,8 @@ function WorkoutSession() {
                   className={cn("w-32", {
                     "text-gray-300":
                       exercise.edit && exercise.edit.state === "remove",
+                    "text-sky-500":
+                      exercise.edit && exercise.edit.state === "add",
                   })}
                 >
                   <InputGroupInput
@@ -221,16 +307,20 @@ function WorkoutSession() {
                   />
                   <InputGroupAddon align="inline-end">
                     {exercise.edit &&
-                      exercise.edit.repDiff !== "none" &&
-                      (exercise.edit.repDiff == "increase" ? (
+                      exercise.edit.state === "none" &&
+                      (exercise.edit.prev.reps < exercise.reps ? (
                         <MoveUp className="text-green-600" />
                       ) : (
-                        <MoveDown className="text-red-600" />
+                        exercise.edit.prev.reps > exercise.reps && (
+                          <MoveDown className="text-red-600" />
+                        )
                       ))}
                     <InputGroupText
                       className={cn("", {
                         "text-gray-300":
                           exercise.edit && exercise.edit.state === "remove",
+                        "text-sky-500":
+                          exercise.edit && exercise.edit.state === "add",
                       })}
                     >
                       reps
@@ -242,6 +332,8 @@ function WorkoutSession() {
                   className={cn("w-32", {
                     "text-gray-300":
                       exercise.edit && exercise.edit.state === "remove",
+                    "text-sky-500":
+                      exercise.edit && exercise.edit.state === "add",
                   })}
                 >
                   <InputGroupInput
@@ -254,16 +346,20 @@ function WorkoutSession() {
                   />
                   <InputGroupAddon align="inline-end">
                     {exercise.edit &&
-                      exercise.edit.setDiff !== "none" &&
-                      (exercise.edit.setDiff == "increase" ? (
+                      exercise.edit.state === "none" &&
+                      (exercise.edit.prev.sets < exercise.sets ? (
                         <MoveUp className="text-green-600" />
                       ) : (
-                        <MoveDown className="text-red-600" />
+                        exercise.edit.prev.sets > exercise.sets && (
+                          <MoveDown className="text-red-600" />
+                        )
                       ))}
                     <InputGroupText
                       className={cn("", {
                         "text-gray-300":
                           exercise.edit && exercise.edit.state === "remove",
+                        "text-sky-500":
+                          exercise.edit && exercise.edit.state === "add",
                       })}
                     >
                       sets
@@ -289,7 +385,7 @@ function WorkoutSession() {
                         variant="destructive"
                         size="icon"
                         className="bg-green-400 hover:bg-green-600"
-                        onClick={acceptChange(index)}
+                        onClick={handleAccept(index)}
                       >
                         <Check />
                       </Button>
@@ -297,7 +393,7 @@ function WorkoutSession() {
                         variant="destructive"
                         size="icon"
                         className="bg-red-400 hover:bg-red-600"
-                        onClick={rejectChange(index)}
+                        onClick={handleReject(index)}
                       >
                         <X />
                       </Button>
@@ -319,7 +415,9 @@ function WorkoutSession() {
                 hidden: action === "chill" || action === "challenge",
               },
             )}
+            disabled={action === "remix"}
           >
+            {action === "remix" && <Spinner />}
             Remix
           </Button>
           <Button
@@ -345,7 +443,9 @@ function WorkoutSession() {
                 hidden: action === "remix" || action === "chill",
               },
             )}
+            disabled={action === "challenge"}
           >
+            {action === "challenge" && <Spinner />}
             Need a Challenge?
           </Button>
         </div>
