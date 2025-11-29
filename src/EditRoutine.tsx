@@ -1,23 +1,25 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useState } from "react";
+import { Button } from "./components/ui/button";
+import { cn } from "./lib/utils";
+import { PLACEHOLDER_EXERCISE, type Exercise } from "./exercise";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
-} from "@/components/ui/input-group";
+} from "./components/ui/input-group";
+import { Check, Info, MoveDown, MoveUp, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
-import { ButtonGroup } from "@/components/ui/button-group";
-import { cn } from "@/lib/utils";
-import { Info, MoveDown, MoveUp, Check, X } from "lucide-react";
+} from "@radix-ui/react-popover";
+import { ButtonGroup } from "./components/ui/button-group";
 import { Spinner } from "./components/ui/spinner";
-import type { Exercise } from "./exercise";
-import { PLACEHOLDER_EXERCISE } from "./exercise";
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const ORIGINAL: Exercise[] = [
   { name: "Dips", reps: 10, sets: 4 },
@@ -26,89 +28,7 @@ const ORIGINAL: Exercise[] = [
   { name: "Squats", reps: 30, sets: 3 },
 ];
 
-const REMIXED: Exercise[] = [
-  {
-    name: "Benchpress",
-    reps: 10,
-    sets: 4,
-    edit: {
-      reason:
-        "You have great expertise with this exercise and you are making good progress on it",
-      state: "none",
-      prev: ORIGINAL[0],
-    },
-  },
-  {
-    name: "Lat pulldown",
-    reps: 12,
-    sets: 3,
-    edit: {
-      reason: "You haven't done this exercise in a while",
-      state: "none",
-      prev: ORIGINAL[1],
-    },
-  },
-  { name: "Rows", reps: 20, sets: 3 },
-  { name: "Squats", reps: 30, sets: 3 },
-];
-
-const CHILLED: Exercise[] = [
-  {
-    name: "Pushups",
-    reps: 10,
-    sets: 4,
-    edit: {
-      reason:
-        "Pushup is an easier pushing exercise that you have a lot of experience in",
-      state: "none",
-      prev: ORIGINAL[0],
-    },
-  },
-  {
-    name: "Pullups",
-    reps: 6,
-    sets: 3,
-    edit: {
-      reason:
-        "You tend to lower the reps on this exercise when you are under the weather",
-      state: "none",
-      prev: ORIGINAL[1],
-    },
-  },
-  {
-    name: "Rows",
-    reps: 10,
-    sets: 3,
-    edit: {
-      reason: "You tend to be more fatigue after doing an upper body day",
-      state: "none",
-      prev: ORIGINAL[2],
-    },
-  },
-  {
-    name: "Squats",
-    reps: 30,
-    sets: 3,
-    edit: {
-      reason: "Amount of exercises is higher than the average",
-      state: "remove",
-      prev: PLACEHOLDER_EXERCISE,
-    },
-  },
-];
-
-const CHALLENGES: Exercise[] = [
-  {
-    name: "Pushups",
-    reps: 20,
-    sets: 3,
-    edit: {
-      reason:
-        "You have great expertise in this exercise, which is a great warmup before dips",
-      state: "add",
-      prev: PLACEHOLDER_EXERCISE,
-    },
-  },
+const ADJUSTED: Exercise[] = [
   {
     name: "Dips",
     reps: 10,
@@ -119,28 +39,42 @@ const CHALLENGES: Exercise[] = [
     reps: 12,
     sets: 3,
   },
+  { name: "Rows", reps: 20, sets: 3 },
   {
-    name: "Rows",
-    reps: 20,
-    sets: 3,
-  },
-  {
-    name: "Squats",
-    reps: 50,
+    name: "Pistol Squats",
+    reps: 10,
     sets: 3,
     edit: {
-      reason: "Your progression on squats have been great",
+      reason:
+        "Progress on squats seems to have plateau, so this is a good time to move to the next progression",
       state: "none",
       prev: ORIGINAL[3],
     },
   },
+  {
+    name: "Stretches",
+    reps: 30,
+    sets: 3,
+    edit: {
+      reason: "You seem to recover better after session with stretches",
+      state: "add",
+      prev: PLACEHOLDER_EXERCISE,
+    },
+  },
 ];
 
-function WorkoutSession() {
+type DayState = {
+  val: string[];
+  prev?: string[];
+  reason?: string;
+};
+
+function EditRoutine() {
   const [exercises, setExercises] = useState<Exercise[]>(ORIGINAL);
-  const [action, setAction] = useState<"remix" | "chill" | "challenge" | null>(
-    null,
-  );
+  const [days, setDays] = useState<DayState>({
+    val: ["Mon", "Wed", "Fri"],
+  });
+  const [action, setAction] = useState<"adjust" | null>(null);
 
   const updateExercise = (
     index: number,
@@ -151,6 +85,46 @@ function WorkoutSession() {
     const newExercises = [...exercises];
     newExercises[index][field] = numValue;
     setExercises(newExercises);
+  };
+
+  const handleChange = (value: string[]) => {
+    setDays({
+      ...days,
+      val: value,
+    });
+  };
+
+  const handleAdjust = () => {
+    setExercises(ADJUSTED);
+    setDays({
+      val: ["Mon", "Thu", "Sat"],
+      prev: days.val,
+      reason:
+        "You have been very fatigue from your other session so this should give you more time to breathe",
+    });
+    setAction("adjust");
+  };
+
+  const handleAcceptDays = () => {
+    setDays({
+      ...days,
+      prev: undefined,
+      reason: undefined,
+    });
+    if (exercises.every((ex) => ex.edit === undefined)) {
+      setAction(null);
+    }
+  };
+
+  const handleRejectDays = () => {
+    setDays({
+      val: days.prev!,
+      prev: undefined,
+      reason: undefined,
+    });
+    if (exercises.every((ex) => ex.edit === undefined)) {
+      setAction(null);
+    }
   };
 
   const handleAccept = (index: number) => {
@@ -183,7 +157,10 @@ function WorkoutSession() {
 
       // clear the old exercises and reset the action when
       // every edits are done
-      if (newExercises.every((ex) => ex.edit === undefined)) {
+      if (
+        newExercises.every((ex) => ex.edit === undefined) &&
+        days.prev === undefined
+      ) {
         setAction(null);
       }
       setExercises(newExercises);
@@ -224,37 +201,86 @@ function WorkoutSession() {
 
       // clear the old exercises and reset the action when
       // every edits are done
-      if (newExercises.every((ex) => ex.edit === undefined)) {
+      if (
+        newExercises.every((ex) => ex.edit === undefined) &&
+        days.prev === undefined
+      ) {
         setAction(null);
       }
       setExercises(newExercises);
     };
   };
 
-  const handleRemix = () => {
-    setExercises(REMIXED);
-    setAction("remix");
-  };
-
-  const handleChill = () => {
-    setExercises(CHILLED);
-    setAction("chill");
-  };
-
-  const handleChallenge = () => {
-    setExercises(CHALLENGES);
-    setAction("challenge");
-  };
-
   return (
     <Card className="flex items-center max-w-2xl shadow-lg">
       <CardHeader className="w-full pb-4">
         <CardTitle className="text-2xl font-bold text-center">
-          Workout Session
+          Edit Routine
         </CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-6">
+        <div className="flex items-center justify-center">
+          <div className="flex flex-row items-center justify-between space-x-2">
+            <ToggleGroup
+              type="multiple"
+              variant="outline"
+              value={days.val}
+              onValueChange={handleChange}
+            >
+              {WEEKDAYS.map((day) => (
+                <ToggleGroupItem
+                  key={day}
+                  value={day}
+                  className={cn({
+                    "data-[state=on]:bg-green-300": action === "adjust",
+                    "bg-red-300":
+                      days.prev &&
+                      days.prev.includes(day) &&
+                      !days.val.includes(day),
+                  })}
+                >
+                  {day}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+
+            {days.prev !== undefined && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Info />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80">
+                    {days.reason}
+                  </PopoverContent>
+                </Popover>
+
+                <ButtonGroup orientation="horizontal" className="w-fit">
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="bg-green-400 hover:bg-green-600"
+                    onClick={handleAcceptDays}
+                  >
+                    <Check />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="bg-red-400 hover:bg-red-600"
+                    onClick={handleRejectDays}
+                  >
+                    <X />
+                  </Button>
+                </ButtonGroup>
+              </>
+            )}
+          </div>
+        </div>
+
         <div className="space-y-4">
           {exercises.map((exercise, index) => (
             <div key={index} className="flex items-center justify-center gap-4">
@@ -390,48 +416,15 @@ function WorkoutSession() {
           ))}
         </div>
 
-        <div className="space-x-3 pt-4 flex flex-row justify-center">
+        <div className="flex items-center justify-center pt-4">
           <Button
-            onClick={handleRemix}
+            onClick={handleAdjust}
             variant="outline"
-            className={cn(
-              "hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300",
-              {
-                hidden: action === "chill" || action === "challenge",
-              },
-            )}
-            disabled={action === "remix"}
+            className={cn("")}
+            disabled={action === "adjust"}
           >
-            {action === "remix" && <Spinner />}
-            Remix
-          </Button>
-          <Button
-            onClick={handleChill}
-            variant="outline"
-            className={cn(
-              "hover:bg-green-50 hover:text-green-700 hover:border-green-300",
-              {
-                hidden: action === "remix" || action === "challenge",
-              },
-            )}
-            disabled={action === "chill"}
-          >
-            {action === "chill" && <Spinner />}
-            Chill
-          </Button>
-          <Button
-            onClick={handleChallenge}
-            variant="outline"
-            className={cn(
-              "hover:bg-red-50 hover:text-red-700 hover:border-red-300",
-              {
-                hidden: action === "remix" || action === "chill",
-              },
-            )}
-            disabled={action === "challenge"}
-          >
-            {action === "challenge" && <Spinner />}
-            Need a Challenge?
+            {action === "adjust" && <Spinner />}
+            Adjust
           </Button>
         </div>
       </CardContent>
@@ -439,4 +432,4 @@ function WorkoutSession() {
   );
 }
 
-export default WorkoutSession;
+export default EditRoutine;
